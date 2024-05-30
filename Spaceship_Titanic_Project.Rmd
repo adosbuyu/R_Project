@@ -1,0 +1,136 @@
+---
+title: "Spaceship Titanic R Project"
+output: html_notebook
+---
+
+
+
+```{r}
+library(tidyverse)
+library(Amelia)
+library(GGally)
+library(ggplot2)
+library(reshape2)
+library(readr)
+```
+
+```{r}
+train <- read_csv("train.csv")
+```
+
+
+```{r}
+head(train)
+
+str(train)
+
+summary(train)
+```
+
+
+```{r}
+missing_values_df <- is.na(train)
+missing_values_df <- melt(missing_values_df)
+colnames(missing_values_df) <- c('row', 'variable', 'missing')
+
+# Plot missing values
+ggplot(missing_values_df, aes(x = variable, y = row)) +
+  geom_raster(aes(fill = missing)) +
+  scale_fill_manual(values = c('black', 'yellow')) +
+  theme_minimal() +
+  labs(title = 'Missing values in the training data', x = 'Variable', y = 'Row') +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# Save the plot
+ggsave("missing_values_plot.png", width = 10, height = 8)
+
+```
+
+The Distribution of passengers by HomePlanet.
+```{r}
+homeplanet_distribution <- train %>% 
+  group_by(HomePlanet) %>% 
+  summarise(Count = n())
+
+ggplot(homeplanet_distribution, aes(x = HomePlanet, y = Count)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  theme_minimal() +
+  labs(title = "Distribution of Passengers by HomePlanet", x = "HomePlanet", y = "Count")
+
+ggsave("homeplanet_distribution.png", plot = last_plot(), width = 8, height = 6)
+```
+
+The Distribution of passengers by Age.
+```{r}
+ggplot(train, aes(x = Age)) +
+  geom_histogram(binwidth = 5, fill = "green", color = "black") +
+  theme_minimal() +
+  labs(title = "Age Distribution of Passengers", x = "Age", y = "Count")
+
+ggsave("age_distribution.png", plot = last_plot(), width = 8, height = 6)
+```
+
+Examining the relationship between Age and Transported.
+```{r}
+ggplot(train, aes(x = Age, fill = Transported)) +
+  geom_histogram(binwidth = 10, position = "dodge") +
+  theme_minimal() +
+  labs(title = "Age Distribution by Transported Status", x = "Age", y = "Count")
+
+ggsave("age_transportation_status.png", plot = last_plot(), width = 8, height = 6)
+```
+
+Examining the relationship between HomePlanet and Transported.
+```{r}
+ggplot(train, aes(x = HomePlanet, fill = Transported)) +
+  geom_bar(position = "dodge") +
+  theme_minimal() +
+  labs(title = "Transported Status by HomePlanet", x = "HomePlanet", y = "Count")
+
+ggsave("homeplanet_transportation_status.png", plot = last_plot(), width = 8, height = 6)
+```
+
+Examining the correlation between different spending categories and Transported.
+```{r}
+spending_categories <- c("RoomService", "FoodCourt", "ShoppingMall", "Spa", "VRDeck")
+
+for (category in spending_categories) {
+  plot <- ggplot(train, aes_string(x = category, fill = "Transported")) +
+    geom_histogram(binwidth = 2000, position = "dodge") +
+    theme_minimal() +
+    labs(title = paste(category, "Spending by Transported Status"), x = category, y = "Count")
+  
+  # Save the plot
+  ggsave(paste0(tolower(category), "_spending_transported.png"), plot = plot, width = 10, height = 8)
+}
+```
+
+
+## Predicting Transported in 'test.csv'. 
+Based on the analysis on ,train.csv', we have the following rules:
+1. Passengers from Europa are more likely to be trasported.
+2. Passengers with low spending on RoomService, ShoppingMall, Spa, and VRDeck are more likely to be transported.
+
+```{r}
+test <- read_csv("test.csv")
+```
+
+```{r}
+head(test)
+```
+
+```{r}
+test$Transported <- FALSE
+
+test$Transported[test$HomePlanet == 'Europa'] <- TRUE
+
+spending_threshold <- 50
+test$Transported[rowSums(select(test, RoomService, ShoppingMall, Spa, VRDeck), na.rm = TRUE) < spending_threshold] <- TRUE
+
+submission <- test %>% select(PassengerId, Transported)
+
+head(submission)
+
+write_csv(submission, "submission.csv")
+```
+
